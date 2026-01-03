@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, RefreshControl } from 'react-native';
+import { View, ScrollView, RefreshControl, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '@/lib/supabase';
 
 import Header from '@/components/dashboard/Header';
 import HashrateDisplay from '@/components/dashboard/HashrateDisplay';
@@ -77,7 +78,20 @@ export default function HomeScreen() {
   };
 
   const handleSettingsPress = () => {
-    console.log('Settings pressed');
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+          }
+        },
+      ]
+    );
   };
 
   const handleMenuPress = () => {
