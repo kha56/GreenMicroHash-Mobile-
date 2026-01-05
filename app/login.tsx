@@ -10,15 +10,17 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Cpu, Lock, Mail, ArrowRight } from "lucide-react-native";
+import { Eye, EyeOff, Cpu, Lock, Mail, ArrowRight, User } from "lucide-react-native";
 import { router } from "expo-router";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
@@ -61,10 +63,10 @@ export default function LoginScreen() {
   };
 
   const handleSignUp = async () => {
-    if (!email.trim() || !password) {
+    if (!email.trim() || !password || !fullName.trim()) {
       Alert.alert(
         "Missing Information",
-        "Please enter both email and password.",
+        "Please enter your name, email and password.",
       );
       return;
     }
@@ -75,6 +77,11 @@ export default function LoginScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password: password,
+      options: {
+        data: {
+          full_name: fullName.trim(),
+        },
+      },
     });
 
     if (error) {
@@ -118,14 +125,32 @@ export default function LoginScreen() {
           {/* Welcome Text */}
           <View className="mb-8">
             <Text className="text-white text-xl font-semibold mb-1">
-              Welcome back
+              {isSignUp ? "Create Account" : "Welcome back"}
             </Text>
             <Text className="text-gmh-slate text-sm">
-              Sign in to monitor your mining operations
+              {isSignUp ? "Sign up to start monitoring your mining operations" : "Sign in to monitor your mining operations"}
             </Text>
           </View>
           {/* Login Form */}
           <View className="gap-4">
+            {/* Full Name Input (Sign Up Only) */}
+            {isSignUp && (
+              <View>
+                <Text className="text-gmh-slate text-xs mb-2 ml-1">Full Name</Text>
+                <View className="flex-row items-center bg-gmh-card border border-gmh-border rounded-xl px-4">
+                  <User size={18} color="#64748B" />
+                  <TextInput
+                    className="flex-1 text-white py-4 px-3"
+                    placeholder="Enter your full name"
+                    placeholderTextColor="#64748B"
+                    value={fullName}
+                    onChangeText={setFullName}
+                    autoCapitalize="words"
+                  />
+                </View>
+              </View>
+            )}
+
             {/* Email Input */}
             <View>
               <Text className="text-gmh-slate text-xs mb-2 ml-1">Email</Text>
@@ -179,39 +204,56 @@ export default function LoginScreen() {
               </View>
             )}
 
-            {/* Forgot Password */}
-            <TouchableOpacity
-              onPress={handleForgotPassword}
-              className="self-end"
-            >
-              <Text className="text-gmh-lime text-sm">Forgot password?</Text>
-            </TouchableOpacity>
+            {/* Forgot Password (Login Only) */}
+            {!isSignUp && (
+              <TouchableOpacity
+                onPress={handleForgotPassword}
+                className="self-end"
+              >
+                <Text className="text-gmh-lime text-sm">Forgot password?</Text>
+              </TouchableOpacity>
+            )}
 
-            {/* Login Button */}
+            {/* Login/Sign Up Button */}
             <TouchableOpacity
-              onPress={handleLogin}
-              disabled={isLoading || !email || !password}
+              onPress={isSignUp ? handleSignUp : handleLogin}
+              disabled={isLoading || !email || !password || (isSignUp && !fullName)}
               className={`flex-row items-center justify-center rounded-xl py-4 mt-2 ${
-                isLoading || !email || !password
+                isLoading || !email || !password || (isSignUp && !fullName)
                   ? "bg-gmh-lime/50"
                   : "bg-gmh-lime"
               }`}
             >
               {isLoading ? (
                 <Text className="text-gmh-dark font-bold text-base">
-                  Signing in...
+                  {isSignUp ? "Creating account..." : "Signing in..."}
                 </Text>
               ) : (
                 <>
                   <Text className="text-gmh-dark font-bold text-base mr-2">
-                    Sign In
+                    {isSignUp ? "Create Account" : "Sign In"}
                   </Text>
                   <ArrowRight size={18} color="#0A0A0B" />
                 </>
               )}
             </TouchableOpacity>
+
+            {/* Toggle Sign Up / Sign In */}
+            <TouchableOpacity
+              onPress={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+              }}
+              className="mt-4"
+            >
+              <Text className="text-gmh-slate text-sm text-center">
+                {isSignUp ? "Already have an account? " : "Don't have an account? "}
+                <Text className="text-gmh-lime font-semibold">
+                  {isSignUp ? "Sign In" : "Sign Up"}
+                </Text>
+              </Text>
+            </TouchableOpacity>
           </View>
-          {/* Sign Up Link */}
 
           {/* Bottom Spacer */}
           <View className="h-8" />

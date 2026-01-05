@@ -65,15 +65,15 @@ export default function RewardsSection({
         {/* Est 24h Reward */}
         <View className="flex-1 bg-gmh-card border border-gmh-border rounded-xl p-3">
           <View className="flex-row items-center gap-2 mb-2">
-            <View className="w-6 h-6 rounded-lg bg-amber-500/20 items-center justify-center">
-              <Zap size={12} color="#F59E0B" />
+            <View className="w-6 h-6 rounded-lg bg-gmh-purple/20 items-center justify-center">
+              <Zap size={12} color="#A78BFA" />
             </View>
             <Text className="text-gmh-slate text-[10px]">Est. 24h</Text>
           </View>
           <Text className="text-white text-base font-bold">
             ₿ {est24hReward.toFixed(6)}
           </Text>
-          <Text className="text-amber-400 text-xs">${est24hRewardUsd.toFixed(2)}</Text>
+          <Text className="text-gmh-purple-light text-xs">${est24hRewardUsd.toFixed(2)}</Text>
         </View>
       </View>
     </View>
