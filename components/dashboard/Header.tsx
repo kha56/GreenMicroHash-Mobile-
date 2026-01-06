@@ -45,11 +45,7 @@ export default function Header({
           </TouchableOpacity>
         </View>
       </View>
-      {/* User greeting bar */}
-      <View className="px-4 pb-3">
-        <Text className="text-gmh-slate text-xs">Welcome back,</Text>
-        <Text className="text-white text-sm font-medium">{username}</Text>
-      </View>
+
     </View>
   );
 }

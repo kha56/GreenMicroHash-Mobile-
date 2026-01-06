@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Activity, Cpu, TrendingUp, BarChart3 } from 'lucide-react-native';
+import { Activity, Clock, TrendingUp, BarChart3 } from 'lucide-react-native';
 
 interface PoolStatisticsProps {
   poolHashrate: number;
   poolHashrateUnit: string;
-  activeWorkers: number;
+  halvingBlocksRemaining: number;
   difficulty?: number;
   blockHeight?: number;
 }
@@ -13,12 +13,30 @@ interface PoolStatisticsProps {
 export default function PoolStatistics({ 
   poolHashrate, 
   poolHashrateUnit,
-  activeWorkers,
-  difficulty = 92.67,
-  blockHeight = 879234
+  halvingBlocksRemaining,
+  difficulty = 0,
+  blockHeight = 0
 }: PoolStatisticsProps) {
   const formatNumber = (num: number) => {
     return num.toLocaleString();
+  };
+  
+  const formatHashrate = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(2);
+    }
+    return num.toFixed(2);
+  };
+  
+  // Calculate estimated time to halving (avg 10 min per block)
+  const formatHalvingCountdown = (blocks: number) => {
+    const minutes = blocks * 10;
+    const days = Math.floor(minutes / (60 * 24));
+    if (days > 365) {
+      const years = (days / 365).toFixed(1);
+      return `~${years} years`;
+    }
+    return `~${days} days`;
   };
   
   return (
@@ -32,20 +50,23 @@ export default function PoolStatistics({
         <View className="flex-1 min-w-[45%] bg-gmh-card border border-gmh-border rounded-lg p-3">
           <View className="flex-row items-center gap-2 mb-1">
             <Activity size={14} color="#84CC16" />
-            <Text className="text-gmh-slate text-[10px]">Pool Hashrate</Text>
+            <Text className="text-gmh-slate text-[10px]">Network Hashrate</Text>
           </View>
           <Text className="text-white text-lg font-bold">
-            {poolHashrate} {poolHashrateUnit}
+            {formatHashrate(poolHashrate)} {poolHashrateUnit}
           </Text>
         </View>
         
         <View className="flex-1 min-w-[45%] bg-gmh-card border border-gmh-border rounded-lg p-3">
           <View className="flex-row items-center gap-2 mb-1">
-            <Cpu size={14} color="#84CC16" />
-            <Text className="text-gmh-slate text-[10px]">Active Workers</Text>
+            <Clock size={14} color="#A78BFA" />
+            <Text className="text-gmh-slate text-[10px]">Halving Countdown</Text>
           </View>
           <Text className="text-white text-lg font-bold">
-            {formatNumber(activeWorkers)}
+            {formatNumber(halvingBlocksRemaining)} blocks
+          </Text>
+          <Text className="text-gmh-slate text-[10px]">
+            {formatHalvingCountdown(halvingBlocksRemaining)}
           </Text>
         </View>
         
