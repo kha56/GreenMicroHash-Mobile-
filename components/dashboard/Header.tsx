@@ -21,18 +21,7 @@ export default function Header({
     <View className="bg-gmh-dark border-b border-gmh-border">
       <View className="flex-row items-center justify-between px-4 py-3">
         <View className="flex-row items-center gap-3">
-          <View className={"flex-row items-center gap-2"}>
-            <View
-              className={
-                "w-8 h-8 rounded-full bg-gmh-lime/20 items-center justify-center"
-              }
-            >
-              <Text className={"text-gmh-lime font-bold text-sm"}>G</Text>
-            </View>
-            <Text className={"text-white text-base font-semibold"}>
-              GreenMicroHash
-            </Text>
-          </View>
+          <View className={"flex-row items-center gap-2"}></View>
           <TouchableOpacity onPress={onMenuPress}></TouchableOpacity>
         </View>
 

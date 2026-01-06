@@ -31,6 +31,7 @@ import WorkerStatus from '@/components/dashboard/WorkerStatus';
 import BitcoinAccount from '@/components/dashboard/BitcoinAccount';
 import RewardsSection from '@/components/dashboard/RewardsSection';
 import PoolStatistics from '@/components/dashboard/PoolStatistics';
+import BlockRewardsGraph from '@/components/dashboard/BlockRewardsGraph';
 
 // Mock data based on the reference dashboard design
 const mockData = {
@@ -89,6 +90,34 @@ export default function HomeScreen() {
   const [payoutProgress, setPayoutProgress] = useState<number>(0);
   const [nextPayoutEta, setNextPayoutEta] = useState<string>("");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [showRewardsHistory, setShowRewardsHistory] = useState(false);
+  
+  // Generate mock daily rewards data for last 30 days based on estimated reward
+  const generateDailyRewards = useCallback(() => {
+    const days = 30;
+    const rewards = [];
+    const baseReward = braiinsRewardData 
+      ? parseFloat(braiinsRewardData.estimated_reward) / 24 
+      : 0.000056;
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - 1 - i));
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      // Add some variance to make it look realistic
+      const variance = 0.7 + Math.random() * 0.6; // 70% to 130% of base
+      const btcAmount = baseReward * variance;
+      
+      rewards.push({
+        date: dateStr,
+        btcAmount,
+        usdAmount: btcAmount * btcPrice,
+      });
+    }
+    return rewards;
+  }, [braiinsRewardData, btcPrice]);
   
   const PAYOUT_THRESHOLD = 0.0051; // BTC minimum payout threshold
 
@@ -290,6 +319,15 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [fetchLiveHashrate]);
 
+  // Separate handler for the button that prevents scroll position change
+  const onButtonRefresh = useCallback(async () => {
+    // Trigger haptic feedback
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Fetch live hashrate data without changing refreshing state (which can affect scroll)
+    await fetchLiveHashrate();
+  }, [fetchLiveHashrate]);
+
   const handleNotificationPress = () => {
     console.log('Notifications pressed');
   };
@@ -321,6 +359,10 @@ export default function HomeScreen() {
 
   const handleBitcoinAccountPress = () => {
     console.log('Bitcoin account pressed');
+  };
+
+  const handleViewRewardsHistory = () => {
+    setShowRewardsHistory(true);
   };
 
   const handleSeeFullList = () => {
@@ -356,7 +398,7 @@ export default function HomeScreen() {
         <HashrateDisplay
           hashrate={liveHashrate}
           unit={data.hashrateUnit}
-          onRefresh={onRefresh}
+          onRefresh={onButtonRefresh}
           isRefreshing={refreshing || isLoadingHashrate}
         />
         
@@ -385,6 +427,7 @@ export default function HomeScreen() {
           todayRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.today_reward) * btcPrice : data.rewards.todayRewardUsd}
           est24hReward={braiinsRewardData ? parseFloat(braiinsRewardData.estimated_reward) : data.rewards.est24hReward}
           est24hRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.estimated_reward) * btcPrice : data.rewards.est24hRewardUsd}
+          onViewHistory={handleViewRewardsHistory}
         />
         
         {/* Fleet Highlights */}
@@ -409,6 +452,14 @@ export default function HomeScreen() {
         {/* Bottom padding for safe scrolling */}
         <View className="h-8" />
       </ScrollView>
+
+      {/* Block Rewards History Modal */}
+      <BlockRewardsGraph
+        visible={showRewardsHistory}
+        onClose={() => setShowRewardsHistory(false)}
+        dailyRewards={generateDailyRewards()}
+        btcPrice={btcPrice}
+      />
     </SafeAreaView>
   );
 }
