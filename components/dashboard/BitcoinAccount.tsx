@@ -6,6 +6,7 @@ interface BitcoinAccountProps {
   usdBalance: number;
   payoutThreshold: number;
   payoutCountdown: string;
+  payoutProgress?: number;
   onPress?: () => void;
 }
 
@@ -14,9 +15,10 @@ export default function BitcoinAccount({
   usdBalance, 
   payoutThreshold,
   payoutCountdown,
+  payoutProgress,
   onPress
 }: BitcoinAccountProps) {
-  const progress = Math.min((btcBalance / payoutThreshold) * 100, 100);
+  const progress = payoutProgress !== undefined ? payoutProgress : Math.min((btcBalance / payoutThreshold) * 100, 100);
   
   return (
     <TouchableOpacity onPress={onPress} className="px-4 py-4 border-t border-gmh-border">
