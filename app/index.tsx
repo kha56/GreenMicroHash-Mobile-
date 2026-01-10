@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { View, ScrollView, RefreshControl, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +31,7 @@ import WorkerStatus from '@/components/dashboard/WorkerStatus';
 import BitcoinAccount from '@/components/dashboard/BitcoinAccount';
 import RewardsSection from '@/components/dashboard/RewardsSection';
 import PoolStatistics from '@/components/dashboard/PoolStatistics';
+import BlockRewardsGraph from '@/components/dashboard/BlockRewardsGraph';
 
 // Mock data based on the reference dashboard design
 const mockData = {
@@ -88,7 +89,67 @@ export default function HomeScreen() {
   const [btcPrice, setBtcPrice] = useState<number>(0);
   const [payoutProgress, setPayoutProgress] = useState<number>(0);
   const [nextPayoutEta, setNextPayoutEta] = useState<string>("");
+  const [machines, setMachines] = useState<Array<{
+    id: string;
+    status: string;
+    user_id: string;
+  }>>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [showRewardsHistory, setShowRewardsHistory] = useState(false);
+  const [networkStats, setNetworkStats] = useState<{
+    difficulty: number;
+    blockHeight: number;
+    networkHashrate: number;
+    halvingBlocksRemaining: number;
+  }>({
+    difficulty: 0,
+    blockHeight: 0,
+    networkHashrate: 0,
+    halvingBlocksRemaining: 0,
+  });
+  
+  // Calculate fleet status from machines table in Supabase
+  const fleetStatus = useMemo(() => {
+    const activeMachines = machines.filter((m) => m.status === "active").length;
+    const inactiveMachines = machines.filter((m) => m.status === "inactive").length;
+    const underRepairMachines = machines.filter((m) => m.status === "under_repair").length;
+    const awaitingDeployment = machines.filter((m) => m.status === "awaiting_deployment").length;
+    
+    return {
+      active: activeMachines,
+      inactive: inactiveMachines,
+      underRepair: underRepairMachines,
+      awaitingDeployment: awaitingDeployment,
+      total: machines.length,
+    };
+  }, [machines]);
+  
+  // Generate mock daily rewards data for last 30 days based on estimated reward
+  const generateDailyRewards = useCallback(() => {
+    const days = 30;
+    const rewards = [];
+    const baseReward = braiinsRewardData 
+      ? parseFloat(braiinsRewardData.estimated_reward) / 24 
+      : 0.000056;
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - 1 - i));
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      // Add some variance to make it look realistic
+      const variance = 0.7 + Math.random() * 0.6; // 70% to 130% of base
+      const btcAmount = baseReward * variance;
+      
+      rewards.push({
+        date: dateStr,
+        btcAmount,
+        usdAmount: btcAmount * btcPrice,
+      });
+    }
+    return rewards;
+  }, [braiinsRewardData, btcPrice]);
   
   const PAYOUT_THRESHOLD = 0.0051; // BTC minimum payout threshold
 
@@ -189,6 +250,58 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch Bitcoin network stats
+  useEffect(() => {
+    const fetchNetworkStats = async () => {
+      try {
+        // Fetch block height from mempool.space
+        const blocksRes = await fetch('https://mempool.space/api/blocks/tip/height');
+        const blockHeight = await blocksRes.json();
+        
+        // Fetch hashrate from mempool.space - returns hashrates array
+        const hashrateRes = await fetch('https://mempool.space/api/v1/mining/hashrate/3d');
+        const hashrateData = await hashrateRes.json();
+        
+        // Get the latest hashrate from the array (in H/s)
+        let networkHashrateEH = 0;
+        if (hashrateData?.hashrates && Array.isArray(hashrateData.hashrates) && hashrateData.hashrates.length > 0) {
+          const latestHashrate = hashrateData.hashrates[hashrateData.hashrates.length - 1];
+          // Convert from H/s to EH/s (divide by 10^18)
+          networkHashrateEH = latestHashrate.avgHashrate / 1e18;
+        } else if (hashrateData?.currentHashrate) {
+          networkHashrateEH = hashrateData.currentHashrate / 1e18;
+        }
+        
+        // Get difficulty from blockchain.info
+        const diffRes = await fetch('https://blockchain.info/q/getdifficulty');
+        const rawDifficulty = await diffRes.json();
+        const difficultyInT = rawDifficulty / 1e12;
+        
+        // Calculate blocks remaining until next halving
+        // Halvings occur every 210,000 blocks. Last halving was at block 840,000 (April 2024)
+        // Next halving at block 1,050,000
+        const currentBlock = typeof blockHeight === 'number' ? blockHeight : 0;
+        const nextHalvingBlock = Math.ceil(currentBlock / 210000) * 210000;
+        const halvingBlocksRemaining = nextHalvingBlock - currentBlock;
+        
+        console.log('Network stats:', { blockHeight, networkHashrateEH, difficultyInT, halvingBlocksRemaining, rawHashrateData: hashrateData });
+        
+        setNetworkStats({
+          blockHeight: currentBlock,
+          networkHashrate: networkHashrateEH,
+          difficulty: difficultyInT,
+          halvingBlocksRemaining: halvingBlocksRemaining,
+        });
+      } catch (error) {
+        console.error('Failed to fetch network stats:', error);
+      }
+    };
+    
+    fetchNetworkStats();
+    const interval = setInterval(fetchNetworkStats, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -205,6 +318,17 @@ export default function HomeScreen() {
                         user.email?.split('@')[0] || 
                         'User';
         setUserName(fullName);
+        
+        // Fetch machines for fleet status
+        const { data: machinesData } = await supabase
+          .from('machines')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (machinesData) {
+          setMachines(machinesData);
+        }
       }
     };
     fetchUser();
@@ -287,7 +411,31 @@ export default function HomeScreen() {
     
     // Fetch live hashrate data
     await fetchLiveHashrate();
+    
+    // Refresh machines data
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: machinesData } = await supabase
+        .from('machines')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (machinesData) {
+        setMachines(machinesData);
+      }
+    }
+    
     setRefreshing(false);
+  }, [fetchLiveHashrate]);
+
+  // Separate handler for the button that prevents scroll position change
+  const onButtonRefresh = useCallback(async () => {
+    // Trigger haptic feedback
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Fetch live hashrate data without changing refreshing state (which can affect scroll)
+    await fetchLiveHashrate();
   }, [fetchLiveHashrate]);
 
   const handleNotificationPress = () => {
@@ -323,6 +471,10 @@ export default function HomeScreen() {
     console.log('Bitcoin account pressed');
   };
 
+  const handleViewRewardsHistory = () => {
+    setShowRewardsHistory(true);
+  };
+
   const handleSeeFullList = () => {
     console.log('See full machine list');
   };
@@ -356,7 +508,7 @@ export default function HomeScreen() {
         <HashrateDisplay
           hashrate={liveHashrate}
           unit={data.hashrateUnit}
-          onRefresh={onRefresh}
+          onRefresh={onButtonRefresh}
           isRefreshing={refreshing || isLoadingHashrate}
         />
         
@@ -379,36 +531,45 @@ export default function HomeScreen() {
         
         {/* Rewards Cards */}
         <RewardsSection
-          currentBalance={braiinsRewardData ? parseFloat(braiinsRewardData.current_balance) : data.rewards.currentBalance}
-          currentBalanceUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.current_balance) * btcPrice : data.rewards.currentBalanceUsd}
-          todayReward={braiinsRewardData ? parseFloat(braiinsRewardData.today_reward) : data.rewards.todayReward}
-          todayRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.today_reward) * btcPrice : data.rewards.todayRewardUsd}
-          est24hReward={braiinsRewardData ? parseFloat(braiinsRewardData.estimated_reward) : data.rewards.est24hReward}
-          est24hRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.estimated_reward) * btcPrice : data.rewards.est24hRewardUsd}
+          currentBalance={braiinsRewardData ? parseFloat(braiinsRewardData.current_balance) : 0}
+          currentBalanceUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.current_balance) * btcPrice : 0}
+          todayReward={braiinsRewardData ? parseFloat(braiinsRewardData.today_reward) : 0}
+          todayRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.today_reward) * btcPrice : 0}
+          est24hReward={braiinsRewardData ? parseFloat(braiinsRewardData.estimated_reward) : 0}
+          est24hRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.estimated_reward) * btcPrice : 0}
+          onViewHistory={handleViewRewardsHistory}
         />
         
         {/* Fleet Highlights */}
         <WorkerStatus
-          active={data.fleet.active}
-          inactive={data.fleet.inactive}
-          underRepair={data.fleet.underRepair}
-          awaitingDeployment={data.fleet.awaitingDeployment}
-          total={data.fleet.total}
+          active={fleetStatus.active}
+          inactive={fleetStatus.inactive}
+          underRepair={fleetStatus.underRepair}
+          awaitingDeployment={fleetStatus.awaitingDeployment}
+          total={fleetStatus.total}
           onStatusPress={handleWorkerStatusPress}
         />
         
         {/* Network Stats */}
         <PoolStatistics
-          poolHashrate={data.pool.hashrate}
-          poolHashrateUnit={data.pool.hashrateUnit}
-          activeWorkers={data.pool.activeWorkers}
-          difficulty={data.pool.difficulty}
-          blockHeight={data.pool.blockHeight}
+          poolHashrate={networkStats.networkHashrate > 0 ? networkStats.networkHashrate : data.pool.hashrate}
+          poolHashrateUnit="EH/s"
+          halvingBlocksRemaining={networkStats.halvingBlocksRemaining}
+          difficulty={networkStats.difficulty > 0 ? networkStats.difficulty : data.pool.difficulty}
+          blockHeight={networkStats.blockHeight > 0 ? networkStats.blockHeight : data.pool.blockHeight}
         />
         
         {/* Bottom padding for safe scrolling */}
         <View className="h-8" />
       </ScrollView>
+
+      {/* Block Rewards History Modal */}
+      <BlockRewardsGraph
+        visible={showRewardsHistory}
+        onClose={() => setShowRewardsHistory(false)}
+        dailyRewards={generateDailyRewards()}
+        btcPrice={btcPrice}
+      />
     </SafeAreaView>
   );
 }

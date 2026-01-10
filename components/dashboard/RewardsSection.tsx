@@ -9,6 +9,7 @@ interface RewardsSectionProps {
   todayRewardUsd: number;
   est24hReward: number;
   est24hRewardUsd: number;
+  onViewHistory?: () => void;
 }
 
 export default function RewardsSection({ 
@@ -18,13 +19,14 @@ export default function RewardsSection({
   todayRewardUsd,
   est24hReward,
   est24hRewardUsd,
+  onViewHistory,
 }: RewardsSectionProps) {
   return (
     <View className="px-4 py-4">
       {/* Section Header */}
       <View className="flex-row items-center justify-between mb-3">
         <Text className="text-white text-sm font-semibold">Rewards</Text>
-        <TouchableOpacity className="flex-row items-center">
+        <TouchableOpacity className="flex-row items-center" onPress={onViewHistory}>
           <Text className="text-gmh-lime text-xs mr-1">View History</Text>
           <ChevronRight size={14} color="#84CC16" />
         </TouchableOpacity>
