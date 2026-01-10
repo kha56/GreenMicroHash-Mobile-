@@ -7,10 +7,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, Cpu, Lock, Mail, ArrowRight, User } from "lucide-react-native";
+import {
+  Eye,
+  EyeOff,
+  Cpu,
+  Lock,
+  Mail,
+  ArrowRight,
+  User,
+} from "lucide-react-native";
 import { router } from "expo-router";
 import { supabase } from "@/lib/supabase";
 
@@ -112,15 +121,13 @@ export default function LoginScreen() {
         <View className="flex-1 px-6 justify-center">
           {/* Logo & Branding */}
           <View className="items-center mb-10">
-            <View className="w-20 h-20 rounded-2xl bg-gmh-lime/20 items-center justify-center mb-4">
-              <Cpu size={40} color="#84CC16" />
-            </View>
-            <Text className="text-white text-2xl font-bold mb-1">
-              GreenMicroHash
-            </Text>
-            <Text className="text-gmh-slate text-sm">
-              Bitcoin Mining Dashboard
-            </Text>
+            <Image
+              source={{
+                uri: "https://storage.googleapis.com/tempo-image-previews/user_34VyAlm0uzuTRfosMMlxuqfHkIR-1767877784575-Screenshot%202026-01-06%20212052.png",
+              }}
+              className="w-24 h-24 mb-4"
+              resizeMode="contain"
+            />
           </View>
           {/* Welcome Text */}
           <View className="mb-8">
@@ -128,7 +135,9 @@ export default function LoginScreen() {
               {isSignUp ? "Create Account" : "Welcome back"}
             </Text>
             <Text className="text-gmh-slate text-sm">
-              {isSignUp ? "Sign up to start monitoring your mining operations" : "Sign in to monitor your mining operations"}
+              {isSignUp
+                ? "Sign up to start monitoring your mining operations"
+                : "Sign in to monitor your mining operations"}
             </Text>
           </View>
           {/* Login Form */}
@@ -136,7 +145,9 @@ export default function LoginScreen() {
             {/* Full Name Input (Sign Up Only) */}
             {isSignUp && (
               <View>
-                <Text className="text-gmh-slate text-xs mb-2 ml-1">Full Name</Text>
+                <Text className="text-gmh-slate text-xs mb-2 ml-1">
+                  Full Name
+                </Text>
                 <View className="flex-row items-center bg-gmh-card border border-gmh-border rounded-xl px-4">
                   <User size={18} color="#64748B" />
                   <TextInput
@@ -217,7 +228,9 @@ export default function LoginScreen() {
             {/* Login/Sign Up Button */}
             <TouchableOpacity
               onPress={isSignUp ? handleSignUp : handleLogin}
-              disabled={isLoading || !email || !password || (isSignUp && !fullName)}
+              disabled={
+                isLoading || !email || !password || (isSignUp && !fullName)
+              }
               className={`flex-row items-center justify-center rounded-xl py-4 mt-2 ${
                 isLoading || !email || !password || (isSignUp && !fullName)
                   ? "bg-gmh-lime/50"
@@ -247,7 +260,9 @@ export default function LoginScreen() {
               className="mt-4"
             >
               <Text className="text-gmh-slate text-sm text-center">
-                {isSignUp ? "Already have an account? " : "Don't have an account? "}
+                {isSignUp
+                  ? "Already have an account? "
+                  : "Don't have an account? "}
                 <Text className="text-gmh-lime font-semibold">
                   {isSignUp ? "Sign In" : "Sign Up"}
                 </Text>
