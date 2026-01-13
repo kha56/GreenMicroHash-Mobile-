@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, ScrollView, RefreshControl, Alert, ActivityIndicator, Text, Modal, TouchableOpacity, FlatList } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -93,6 +93,20 @@ export default function HomeScreen() {
     id: string;
     status: string;
     user_id: string;
+  }>>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [unreadInvoiceCount, setUnreadInvoiceCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [invoices, setInvoices] = useState<Array<{
+    id: string;
+    invoice_number: string;
+    amount: number;
+    currency: string;
+    status: string;
+    description: string | null;
+    due_date: string | null;
+    is_read: boolean;
+    created_at: string;
   }>>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -334,6 +348,62 @@ export default function HomeScreen() {
     fetchUser();
   }, []);
 
+  // Set initial loading to false once all critical data is loaded
+  useEffect(() => {
+    if (hasInitiallyLoaded && userName) {
+      // Give a slight delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasInitiallyLoaded, userName]);
+
+  // Fetch invoices and unread count, subscribe to realtime updates
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch all invoices for the user (most recent first)
+      const { data: invoiceData, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && invoiceData) {
+        setInvoices(invoiceData);
+        const unreadCount = invoiceData.filter(inv => !inv.is_read).length;
+        setUnreadInvoiceCount(unreadCount);
+      }
+    };
+
+    fetchInvoices();
+
+    // Subscribe to realtime changes on invoices table
+    const channel = supabase
+      .channel('invoice-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'invoices',
+        },
+        (payload) => {
+          console.log('Invoice change detected:', payload);
+          // Refetch invoices when any change happens
+          fetchInvoices();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Calculate time until reaching payout threshold (0.0051 BTC)
   useEffect(() => {
     const calculatePayoutEta = () => {
@@ -439,7 +509,48 @@ export default function HomeScreen() {
   }, [fetchLiveHashrate]);
 
   const handleNotificationPress = () => {
-    console.log('Notifications pressed');
+    setShowNotifications(true);
+  };
+
+  const markInvoiceAsRead = async (invoiceId: string) => {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ is_read: true })
+      .eq('id', invoiceId);
+
+    if (!error) {
+      setInvoices(prev => prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, is_read: true } : inv
+      ));
+      setUnreadInvoiceCount(prev => Math.max(0, prev - 1));
+    }
+  };
+
+  const markAllAsRead = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+
+    if (!error) {
+      setInvoices(prev => prev.map(inv => ({ ...inv, is_read: true })));
+      setUnreadInvoiceCount(0);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const handleSettingsPress = () => {
@@ -479,6 +590,19 @@ export default function HomeScreen() {
     console.log('See full machine list');
   };
 
+  // Loading screen while data is being fetched
+  if (isInitialLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gmh-dark items-center justify-center">
+        <StatusBar style="light" />
+        <View className="items-center justify-center">
+          <ActivityIndicator size="large" color="#7C3AED" />
+          <Text className="text-slate-400 mt-4 font-medium text-base">Loading your dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-gmh-dark">
       <StatusBar style="light" />
@@ -486,7 +610,7 @@ export default function HomeScreen() {
       {/* Sticky Header */}
       <Header
         username={userName || data.username}
-        notificationCount={data.notificationCount}
+        notificationCount={unreadInvoiceCount}
         onNotificationPress={handleNotificationPress}
         onSettingsPress={handleSettingsPress}
         onMenuPress={handleMenuPress}
@@ -570,6 +694,98 @@ export default function HomeScreen() {
         dailyRewards={generateDailyRewards()}
         btcPrice={btcPrice}
       />
+
+      {/* Notifications Modal */}
+      <Modal
+        visible={showNotifications}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNotifications(false)}
+      >
+        <View className="flex-1 bg-black/80 justify-end">
+          <View className="bg-gmh-dark rounded-t-3xl max-h-[80%]">
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-800">
+              <Text className="text-white text-xl font-semibold">Notifications</Text>
+              <View className="flex-row items-center gap-3">
+                {unreadInvoiceCount > 0 && (
+                  <TouchableOpacity 
+                    onPress={markAllAsRead}
+                    className="px-3 py-1.5 bg-purple-600/20 rounded-full"
+                  >
+                    <Text className="text-purple-400 text-sm font-medium">Mark all read</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity 
+                  onPress={() => setShowNotifications(false)}
+                  className="w-8 h-8 items-center justify-center rounded-full bg-slate-800"
+                >
+                  <Text className="text-white text-lg">✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Invoice List */}
+            {invoices.length === 0 ? (
+              <View className="py-16 items-center justify-center">
+                <Text className="text-slate-500 text-4xl mb-3">🔔</Text>
+                <Text className="text-slate-400 text-base font-medium">No notifications yet</Text>
+                <Text className="text-slate-500 text-sm mt-1">New invoices will appear here</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={invoices}
+                keyExtractor={(item) => item.id}
+                className="px-4 py-2"
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => markInvoiceAsRead(item.id)}
+                    className={`p-4 rounded-xl mb-3 ${item.is_read ? 'bg-slate-800/50' : 'bg-purple-600/20 border border-purple-500/30'}`}
+                  >
+                    <View className="flex-row items-start justify-between mb-2">
+                      <View className="flex-row items-center gap-2">
+                        {!item.is_read && (
+                          <View className="w-2 h-2 bg-purple-500 rounded-full" />
+                        )}
+                        <Text className={`font-semibold ${item.is_read ? 'text-slate-400' : 'text-white'}`}>
+                          New Invoice
+                        </Text>
+                      </View>
+                      <Text className={`text-xs ${item.is_read ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {formatDate(item.created_at)}
+                      </Text>
+                    </View>
+                    <Text className={`text-sm mb-1 ${item.is_read ? 'text-slate-500' : 'text-slate-300'}`}>
+                      Invoice #{item.invoice_number}
+                    </Text>
+                    <View className="flex-row items-center justify-between mt-2">
+                      <Text className={`text-lg font-bold ${item.is_read ? 'text-slate-400' : 'text-lime-400'}`}>
+                        {item.currency === 'BTC' ? '₿' : '$'}{item.amount.toLocaleString()}
+                      </Text>
+                      <View className={`px-2 py-1 rounded-full ${
+                        item.status === 'paid' ? 'bg-green-600/20' : 
+                        item.status === 'pending' ? 'bg-amber-600/20' : 'bg-red-600/20'
+                      }`}>
+                        <Text className={`text-xs font-medium capitalize ${
+                          item.status === 'paid' ? 'text-green-400' : 
+                          item.status === 'pending' ? 'text-amber-400' : 'text-red-400'
+                        }`}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
+                    {item.description && (
+                      <Text className={`text-xs mt-2 ${item.is_read ? 'text-slate-600' : 'text-slate-400'}`}>
+                        {item.description}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
