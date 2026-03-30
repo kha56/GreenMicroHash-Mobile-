@@ -31,7 +31,6 @@ import WorkerStatus from '@/components/dashboard/WorkerStatus';
 import BitcoinAccount from '@/components/dashboard/BitcoinAccount';
 import RewardsSection from '@/components/dashboard/RewardsSection';
 import PoolStatistics from '@/components/dashboard/PoolStatistics';
-import BlockRewardsGraph from '@/components/dashboard/BlockRewardsGraph';
 
 // Mock data based on the reference dashboard design
 const mockData = {
@@ -110,7 +109,6 @@ export default function HomeScreen() {
   }>>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  const [showRewardsHistory, setShowRewardsHistory] = useState(false);
   const [networkStats, setNetworkStats] = useState<{
     difficulty: number;
     blockHeight: number;
@@ -139,32 +137,7 @@ export default function HomeScreen() {
     };
   }, [machines]);
   
-  // Generate mock daily rewards data for last 30 days based on estimated reward
-  const generateDailyRewards = useCallback(() => {
-    const days = 30;
-    const rewards = [];
-    const baseReward = braiinsRewardData 
-      ? parseFloat(braiinsRewardData.estimated_reward) / 24 
-      : 0.000056;
-    
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - 1 - i));
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      
-      // Add some variance to make it look realistic
-      const variance = 0.7 + Math.random() * 0.6; // 70% to 130% of base
-      const btcAmount = baseReward * variance;
-      
-      rewards.push({
-        date: dateStr,
-        btcAmount,
-        usdAmount: btcAmount * btcPrice,
-      });
-    }
-    return rewards;
-  }, [braiinsRewardData, btcPrice]);
-  
+
   const PAYOUT_THRESHOLD = 0.0051; // BTC minimum payout threshold
 
   const fetchLiveHashrate = useCallback(async () => {
@@ -582,9 +555,6 @@ export default function HomeScreen() {
     console.log('Bitcoin account pressed');
   };
 
-  const handleViewRewardsHistory = () => {
-    setShowRewardsHistory(true);
-  };
 
   const handleSeeFullList = () => {
     console.log('See full machine list');
@@ -661,7 +631,6 @@ export default function HomeScreen() {
           todayRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.today_reward) * btcPrice : 0}
           est24hReward={braiinsRewardData ? parseFloat(braiinsRewardData.estimated_reward) : 0}
           est24hRewardUsd={braiinsRewardData && btcPrice > 0 ? parseFloat(braiinsRewardData.estimated_reward) * btcPrice : 0}
-          onViewHistory={handleViewRewardsHistory}
         />
         
         {/* Fleet Highlights */}
@@ -687,13 +656,6 @@ export default function HomeScreen() {
         <View className="h-8" />
       </ScrollView>
 
-      {/* Block Rewards History Modal */}
-      <BlockRewardsGraph
-        visible={showRewardsHistory}
-        onClose={() => setShowRewardsHistory(false)}
-        dailyRewards={generateDailyRewards()}
-        btcPrice={btcPrice}
-      />
 
       {/* Notifications Modal */}
       <Modal

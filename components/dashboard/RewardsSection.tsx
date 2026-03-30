@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Wallet, TrendingUp, Zap, ChevronRight } from 'lucide-react-native';
+import { View, Text } from 'react-native';
+import { Wallet, TrendingUp, Zap } from 'lucide-react-native';
 
 interface RewardsSectionProps {
   currentBalance: number;
@@ -9,27 +9,21 @@ interface RewardsSectionProps {
   todayRewardUsd: number;
   est24hReward: number;
   est24hRewardUsd: number;
-  onViewHistory?: () => void;
 }
 
-export default function RewardsSection({ 
+export default function RewardsSection({
   currentBalance,
   currentBalanceUsd,
   todayReward,
   todayRewardUsd,
   est24hReward,
   est24hRewardUsd,
-  onViewHistory,
 }: RewardsSectionProps) {
   return (
     <View className="px-4 py-4">
       {/* Section Header */}
       <View className="flex-row items-center justify-between mb-3">
         <Text className="text-white text-sm font-semibold">Rewards</Text>
-        <TouchableOpacity className="flex-row items-center" onPress={onViewHistory}>
-          <Text className="text-gmh-lime text-xs mr-1">View History</Text>
-          <ChevronRight size={14} color="#84CC16" />
-        </TouchableOpacity>
       </View>
       
       {/* Main Balance Card */}
